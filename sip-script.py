@@ -1,7 +1,8 @@
+#!/usr/bin/env python3
+
 import re
 import sys
 import subprocess
-
 
 def parse_file(filename,peers):
     with open(filename,'r') as f:
@@ -29,8 +30,10 @@ def show_peer(peer):
     else:
         print('No such peer in users.conf!')
         sys.exit(1)
-    #subprocess.run('sudo asterisk -x "sip show peers" | head -1')
-    #subprocess.run('sudo asterisk -x "sip show peers" | grep ' + peer)
+    print()
+    subprocess.run('asterisk -x "sip show peers" | head -1', shell=True)
+    subprocess.run(r'asterisk -x "sip show peers" | grep ^' + peer, shell=True)
+    print()
 
 
 def change_peer(peer):
@@ -116,6 +119,7 @@ def show_groups(peers, peer_groups):
         print('\n', group,':', end='\t', sep='')
         for peer in peers:
             print(peer, end='\t', sep='')
+    print('\n')
 
 
 def set_group():
@@ -150,21 +154,21 @@ def confirm_changes(peer, display_peer=True):
 
 
 def write_file(filename_out):
-    #backup file!
+    subprocess.run(str('cp '+ filename + ' ' + backup_filename + '.' +  '$(date +"%Y%m%d_%H%M%S")'), shell=True)
+    
     with open(filename_out, 'w') as f:
         for peer in peers:
             f.write(str('['+peer+'](default)'+'\n'))
             for key,value in peers[peer].items():
-                #f.write(str(key+'='+value+'\n'))
                 f.write(f'{key}={value}\n')
             f.write('\n')
     print('file updated')
-    # shell_cmd = subprocess.run('sudo asterisk -x "sip reload"')
-    # if shell_cmd.returncode == 0:
-    #     print('sip reloaded')
-    # else:
-    #     print('sip reload failed!')
-    #     sys.exit(1)
+    shell_cmd = subprocess.run('sudo asterisk -x "sip reload"', shell=True)
+    if shell_cmd.returncode == 0:
+        print('sip reloaded')
+    else:
+        print('sip reload failed!')
+        sys.exit(1)
 
 
 if __name__ == '__main__':
@@ -186,8 +190,9 @@ if __name__ == '__main__':
         print(usage)
         sys.exit(0)
 
-    filename = 'C:\\AsterNEW\\users_upd.conf'
-    filename_out = 'C:\\AsterNEW\\users_upd.conf'
+    filename = '/etc/asterisk/asterisco/users.conf'
+    filename_out = '/etc/asterisk/asterisco/users.conf'
+    backup_filename = '/etc/asterisk/asterisco/backup/users.conf'
     peers = {}
     peer_groups = {}
     parse_file(filename,peers)
