@@ -3,6 +3,7 @@
 import re
 import sys
 import subprocess
+from dotenv import dotenv_values
 
 def parse_file(filename,peers):
     with open(filename,'r') as f:
@@ -172,6 +173,11 @@ def write_file(filename_out):
 
 
 if __name__ == '__main__':
+    env = dotenv_values()
+    filename = env['filename']
+    filename_out = env['filename_out']
+    backup_filename = env['backup_filename']
+
     usage = 'This script is used for managing Asterisk sip peers\n' \
             'by editing "/etc/asterisk/asterisco/users.conf" file.\n' \
             'Backup of the old file is saved under the "backup" subdir.\n' \
@@ -190,9 +196,6 @@ if __name__ == '__main__':
         print(usage)
         sys.exit(0)
 
-    filename = '/etc/asterisk/asterisco/users.conf'
-    filename_out = '/etc/asterisk/asterisco/users.conf'
-    backup_filename = '/etc/asterisk/asterisco/backup/users.conf'
     peers = {}
     peer_groups = {}
     parse_file(filename,peers)
