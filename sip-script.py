@@ -22,44 +22,55 @@ def parse_file(filename, peers):
                 last_peer = cur_peer.group(1)
 
 
-def show_peer(peer):
+def show_peer(peer, display_sip_status=True):
     print(f'\nPeer {peer}')
     if peer in peers:
-        for key, value in peers[peer].items():
-            print(key, ': ', value, sep='')
+        for key, value in sorted(peers[peer].items()):
+            print(f"{key}: {value}")
     else:
         raise SystemExit('No such peer in users.conf!')
-    print()
-    subprocess.run(r'asterisk -x "sip show peers like" ' + peer, shell=True)
-    print()
+    if display_sip_status:
+        print('\nCurrent status from asterisk:')
+        subprocess.run(f'asterisk -x "sip show peers like {peer}"', shell=True)
+        print()
 
 
 def change_peer(peer):
     print(f'\nChanging peer {peer}:')
     for key, value in peers[peer].items():
         if key != 'context':
-            new_value = input("key,': ',value,'\nNew value? (<Enter> to skip)', sep=''")
+            new_value = input(f"{key}: {value}\nNew value? (<Enter> to skip)\n")
             if new_value != '':
                 peers[peer][key] = new_value
     if 'context' not in peers[peer] or peers[peer]['context'] == 'default':
-        if input('Current context is "default". Change to "longdistance"? y/n (<Enter> to skip)') == 'y':
+        if input('Current context is "default". Change to "longdistance"? y/n (<Enter> to skip)\n') == 'y':
             peers[peer]['context'] = 'longdistance'
     else:
-        if input('Current context is "longdistance". Change to "default"? y/n (<Enter> to skip)') == 'y':
+        if input('Current context is "longdistance". Change to "default"? y/n (<Enter> to skip)\n') == 'y':
             peers[peer]['context'] = 'default'
+    if 'callerid' not in peers[peer]:
+        callerid = input('\nCaller ID? (<Enter> to skip)\n')
+        if callerid != '':
+            peers[peer]['callerid'] = callerid
+
     if confirm_changes(peer):
         write_file(filename_out)
 
 
 def add_peer(peer):
-    print(f'\nAdding new peer: {peer}')
+    print(f'\nAdding new peer: {peer}\n')
     if peer in peers:
         raise SystemExit('Peer already existsts!')
     if peer.isdigit() and len(peer) == 3:
         peers[peer] = {}
     else:
         raise SystemExit('Phone must be 3 digits long')
-    secret = input('\nSecret? (8 characters min)')
+
+    callerid = input('\nCaller ID? (<Enter> to skip)\n')
+    if callerid != '':
+        peers[peer]['callerid'] = callerid
+
+    secret = input('\nSecret? (8 characters min)\n')
     if len(secret) >= 8:
         peers[peer]['secret'] = secret
     else:
@@ -69,15 +80,15 @@ def add_peer(peer):
     print('\nCurrent groups:')
     for key in peer_groups.keys():
         print(key, end='\t')
-    group = input('\nGroup name? (<Enter> to skip)')
+    group = input('\nGroup name? (<Enter> to skip)\n')
     if group != '':
         peers[peer]['namedcallgroup'] = group
         peers[peer]['namedpickupgroup'] = group
 
-    if input('\nCurrent context is "default". Change to "longdistance"? y/n (<Enter> to skip)') == 'y':
+    if input('\nCurrent context is "default". Change to "longdistance"? y/n (<Enter> to skip)\n') == 'y':
         peers[peer]['context'] = 'longdistance'
 
-    if confirm_changes(peer):
+    if confirm_changes(peer, display_sip_status=False):
         write_file(filename_out)
 
 
@@ -110,10 +121,10 @@ def show_groups(peers, peer_groups):
 
 
 def set_group():
-    group_name = input('Enter group name:')
+    group_name = input('Enter group name:\n')
     if group_name == '':
         raise SystemExit('Group not specified!')
-    peer_list = input('Enter phones for this group, separated with spaces:').split()
+    peer_list = input('Enter phones for this group, separated with spaces:\n').split()
     if len(peer_list) == 0:
         raise SystemExit('Phones not specified!')
     for peer in peer_list:
@@ -125,22 +136,22 @@ def set_group():
         write_file(filename_out)
 
 
-def confirm_changes(peer, display_peer=True):
+def confirm_changes(peer, display_peer=True, display_sip_status=True):
     if display_peer:
-        show_peer(peer)
-    if input('\nConfirm changes? y/n') == 'y':
+        show_peer(peer, display_sip_status)
+    if input('\nConfirm changes? y/n\n') == 'y':
         return True
     raise SystemExit('Nothing changed. Exiting')
 
 
 def write_file(filename_out):
-    backup_cmd = subprocess.run(str('cp ' + filename + ' ' + backup_filename + '.' + '$(date +"%Y%m%d_%H%M%S")'), shell=True)
+    backup_cmd = subprocess.run(f'cp {filename} {backup_filename}.$(date +"%Y%m%d_%H%M%S")', shell=True)
     if backup_cmd.returncode != 0:
-        raise SystemExit('Failed to create backup file!')
+        raise SystemExit('Failed to create a backup file!')
     with open(filename_out, 'w') as f:
-        for peer in peers:
-            f.write(str('[' + peer + '](default)' + '\n'))
-            for key, value in peers[peer].items():
+        for peer in sorted(peers):
+            f.write(f"[{peer}](default)\n")
+            for key, value in sorted(peers[peer].items()):
                 f.write(f'{key}={value}\n')
             f.write('\n')
     print('file updated')
@@ -161,18 +172,16 @@ if __name__ == '__main__':
     .env file must contain the following variables:\n \
     filename  \t \t \t path to the config file containing asterisk peers\n \
     filename_out \t \t should be the same as the previous value. can be changed for debugging/testing\n \
-    backup_filename \t path for storing the original file contents (current timestamp will be added automatically)\n"
+    backup_filename \t \t path for storing the original file contents (current timestamp will be added automatically)\n"
     usage = "\nUsage:\n \
     sip-script.py show | add | change | remove <peer> \t \t does the specified action for the given peer\n \
-    sip-script.py groups \t \t \t \t \t \t \t \t \t shows current callgroups (*8) and their members\n \
-    sip-script.py setgroup \t \t \t \t \t \t \t \t sets a callgroup for a list of given (existing) peers\n"
-
+    sip-script.py groups \t \t \t \t \t shows current callgroups (*8) and their members\n \
+    sip-script.py setgroup\t \t \t \t \t sets a callgroup for a list of given (existing) peers\n"
     if len(sys.argv) == 1 or sys.argv[1] not in ['show', 'add', 'change', 'remove', 'groups', 'setgroup']:
         raise SystemExit(description + usage)
-    if sys.argv[1] in ['show', 'add', 'change', 'remove'] and len(sys.argv) != 3:
+    elif sys.argv[1] in ['show', 'add', 'change', 'remove'] and len(sys.argv) != 3 or not sys.argv[2].isdigit():
         raise SystemExit(usage)
-    if sys.argv[1] in ['-h', '--help', 'help']:
-        print(description + usage)
+
     else:
         peers = {}
         peer_groups = {}
